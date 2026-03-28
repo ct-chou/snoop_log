@@ -174,11 +174,21 @@ st.divider()
 # ── Command Mode ───────────────────────────────────────────────────────────────
 
 st.subheader("Give a Command")
-st.caption("Upload an audio clip of you giving a command. The dog will match it to its learned behaviors and narrate its response.")
+st.caption("Record a command live or upload an audio file. The dog will match the sound pattern to its learned behaviors and narrate its response.")
 
-cmd_audio = st.file_uploader("Audio command", type=["mp3", "wav", "m4a", "mp4"], key="cmd_upload")
+tab_record, tab_upload = st.tabs(["🎙️ Record live", "📁 Upload file"])
 
-if cmd_audio:
+with tab_record:
+    st.caption("Click the microphone to start recording, click again to stop.")
+    cmd_audio_bytes = st.audio_input("Record command", key="cmd_record")
+    cmd_audio_source = ("recorded", cmd_audio_bytes) if cmd_audio_bytes else None
+
+with tab_upload:
+    cmd_audio_file = st.file_uploader("Audio command", type=["mp3", "wav", "m4a"], key="cmd_upload")
+    cmd_audio_source = ("uploaded", cmd_audio_file) if cmd_audio_file else cmd_audio_source
+
+if cmd_audio_source:
+    kind, audio_data = cmd_audio_source
     col1, _ = st.columns([1, 4])
     with col1:
         cmd_btn = st.button("Send Command", type="primary", use_container_width=True)
@@ -190,21 +200,21 @@ if cmd_audio:
         else:
             tmp_path = None
             try:
-                suffix = "." + cmd_audio.name.rsplit(".", 1)[-1].lower()
                 import tempfile
+                suffix = ".wav" if kind == "recorded" else "." + audio_data.name.rsplit(".", 1)[-1].lower()
                 with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                    tmp.write(cmd_audio.read())
+                    tmp.write(audio_data.read() if kind == "uploaded" else audio_data.getvalue())
                     tmp_path = tmp.name
 
                 with st.status("Listening...", expanded=True) as status:
                     result = respond_to_command(tmp_path, behaviors)
                     status.update(label="Done", state="complete")
 
-                recognized   = result.get("recognized", False)
-                action_id     = result.get("matched_action_id")
-                confidence    = result.get("confidence", 0.0)
-                narration     = result.get("narration", "")
-                dog_state     = "happy" if recognized and confidence > 0.6 else "confused"
+                recognized = result.get("recognized", False)
+                action_id  = result.get("matched_action_id")
+                confidence = result.get("confidence", 0.0)
+                narration  = result.get("narration", "")
+                dog_state  = "happy" if recognized and confidence > 0.6 else "confused"
 
                 col_narration, col_dog = st.columns([3, 1])
                 with col_narration:
@@ -213,7 +223,6 @@ if cmd_audio:
                     else:
                         st.error(f"Not recognized — {confidence:.0%} confidence")
                     st.markdown(f"> *{narration}*")
-
                 with col_dog:
                     render_dog(dog_state)
 
