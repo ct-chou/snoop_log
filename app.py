@@ -16,9 +16,24 @@ from log import (
 
 st.set_page_config(page_title="snoop_log", page_icon="🐾", layout="wide")
 
+# ── Sidebar ────────────────────────────────────────────────────────────────────
+
+with st.sidebar:
+    st.image("images/snooplogclean.PNG", use_container_width=True)
+    st.markdown("### Agentic AI Canine Companion")
+    st.caption("Powered by Gemini 2.5 Flash")
+    st.divider()
+    behaviors = load_behaviors()
+    sessions = load_sessions()
+    st.metric("Behaviors learned", len(behaviors))
+    st.metric("Training sessions", len(sessions))
+    if behaviors:
+        avg = sum(b["confidence"] for b in behaviors) / len(behaviors)
+        st.metric("Avg confidence", f"{avg:.0%}")
+
 # ── Header ─────────────────────────────────────────────────────────────────────
 
-st.title("🐾 snoop_log")
+st.image("images/snooplogwithtitle.PNG", width=420)
 st.caption("a dog's training journal — powered by Gemini 2.5 Flash")
 
 # ── Success toast after training ───────────────────────────────────────────────
@@ -95,7 +110,7 @@ def delta_badge(delta_str: str) -> str:
 
 st.subheader("Learned Behaviors")
 
-behaviors = load_behaviors()
+behaviors = load_behaviors()  # refresh after any training
 
 if not behaviors:
     st.info("No behaviors learned yet. Upload a training video to get started.")

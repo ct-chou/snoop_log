@@ -19,7 +19,7 @@ videos/
 # OS
 .DS_Store
 
-# Temp / scratch images
-*.jpg
-*.jpeg
-*.png
+# Temp / scratch images (root level only, not images/)
+/*.jpg
+/*.jpeg
+/*.png
