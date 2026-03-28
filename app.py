@@ -1,14 +1,10 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-import base64
 import os
-import shutil
-import tempfile
 from pathlib import Path
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 from gemini_processor import analyze_video
 from log import (
@@ -21,10 +17,11 @@ from log import (
 
 st.set_page_config(page_title="snoop_log", page_icon="🐾", layout="wide")
 
-VIDEOS_DIR = Path("videos")
+VIDEOS_DIR    = Path("videos")
+DOG_STATES_DIR = Path("dog_states")
 VIDEOS_DIR.mkdir(exist_ok=True)
 
-# ── Animated dog component ─────────────────────────────────────────────────────
+# ── Animated dog GIFs ──────────────────────────────────────────────────────────
 
 STATE_LABELS = {
     "alert":     "👀 On alert — something caught my attention",
@@ -33,65 +30,14 @@ STATE_LABELS = {
     "confused":  "❓ Wait... what did that mean?",
 }
 
-STATE_COLORS = {
-    "alert":     "#1d4ed8",
-    "confident": "#166534",
-    "happy":     "#d97706",
-    "confused":  "#991b1b",
-}
 
-
-def dog_animation_html(state: str, size: int = 180) -> str:
-    img_path = Path("images/snooplogclean.PNG")
-    img_b64 = base64.b64encode(img_path.read_bytes()).decode()
-    label = STATE_LABELS.get(state, "")
-    color = STATE_COLORS.get(state, "#666")
-
-    animations = {
-        "happy":     "bounce 0.55s ease-in-out infinite",
-        "confident": "pulse 1.2s ease-in-out infinite",
-        "confused":  "shake 0.45s ease-in-out infinite",
-        "alert":     "pulse 2s ease-in-out infinite",
-    }
-    anim = animations.get(state, "pulse 2s ease-in-out infinite")
-
-    return f"""
-    <style>
-      @keyframes bounce {{
-        0%, 100% {{ transform: translateY(0px) rotate(0deg); }}
-        40% {{ transform: translateY(-18px) rotate(-3deg); }}
-        60% {{ transform: translateY(-12px) rotate(3deg); }}
-      }}
-      @keyframes pulse {{
-        0%, 100% {{ transform: scale(1); filter: brightness(1); }}
-        50% {{ transform: scale(1.06); filter: brightness(1.1); }}
-      }}
-      @keyframes shake {{
-        0%, 100% {{ transform: rotate(0deg); }}
-        20% {{ transform: rotate(-9deg); }}
-        40% {{ transform: rotate(9deg); }}
-        60% {{ transform: rotate(-6deg); }}
-        80% {{ transform: rotate(6deg); }}
-      }}
-      .dog-wrap {{ text-align: center; padding: 8px 0; }}
-      .dog-img  {{ width: {size}px; animation: {anim}; }}
-      .dog-label {{
-        margin-top: 10px;
-        font-size: 0.85em;
-        font-style: italic;
-        color: {color};
-        font-weight: 600;
-      }}
-    </style>
-    <div class="dog-wrap">
-      <img class="dog-img" src="data:image/png;base64,{img_b64}" />
-      <div class="dog-label">{label}</div>
-    </div>
-    """
-
-
-def render_dog(state: str, size: int = 180, height: int = 240):
-    components.html(dog_animation_html(state, size), height=height)
+def render_dog(state: str, caption: bool = True) -> None:
+    gif_path = DOG_STATES_DIR / f"{state}.gif"
+    if not gif_path.exists():
+        gif_path = DOG_STATES_DIR / "alert.gif"   # fallback
+    st.image(str(gif_path), use_container_width=True)
+    if caption:
+        st.caption(STATE_LABELS.get(state, ""))
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -167,7 +113,7 @@ if "last_result" in st.session_state:
                     f"`{moment.get('time', '?')}` {emoji} *{moment.get('event', '')}*"
                 )
     with col_dog:
-        render_dog(state, size=160, height=220)
+        render_dog(state)
 
     st.divider()
 
@@ -292,4 +238,4 @@ else:
                     st.success("No confusion flags this session", icon="✓")
 
             with col_right:
-                render_dog(state, size=130, height=190)
+                render_dog(state)
