@@ -21,7 +21,6 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from agent import analyze_training_session, respond_to_command, transcribe_audio
 from log import (
     append_session,
     load_behaviors,
@@ -29,7 +28,15 @@ from log import (
     next_session_id,
     save_behaviors,
 )
-from processor import extract_audio, process_video
+
+_USE_GEMINI = bool(os.environ.get("GEMINI_API_KEY"))
+
+if _USE_GEMINI:
+    import gemini_processor
+else:
+    import anthropic
+    from agent import analyze_training_session, respond_to_command, transcribe_audio
+    from processor import process_video
 
 console = Console()
 
@@ -41,32 +48,41 @@ def cmd_train(video_path: str) -> None:
         console.print(f"[red]File not found:[/red] {video_path}")
         sys.exit(1)
 
-    client = anthropic.Anthropic()
     session_id = next_session_id()
+    current_behaviors = load_behaviors()
 
     console.print(f"\n[bold cyan]snoop_log[/bold cyan] — Training Session {session_id}")
     console.print(f"[dim]{path.name}[/dim]\n")
 
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as p:
-        t = p.add_task("Extracting frames and audio...")
-        video_data = process_video(video_path)
-        p.update(t, description="[green]Frames and audio extracted")
+        if _USE_GEMINI:
+            t = p.add_task("Uploading video to Gemini...")
+            result = gemini_processor.analyze_video(
+                video_path=str(path),
+                current_behaviors=current_behaviors,
+                session_id=session_id,
+            )
+            p.update(t, description="[green]Session analyzed via Gemini")
+        else:
+            t = p.add_task("Extracting frames and audio...")
+            video_data = process_video(video_path)
+            p.update(t, description="[green]Frames and audio extracted")
 
-        t = p.add_task("Transcribing audio...")
-        transcript = transcribe_audio(video_data["audio_path"], client)
-        os.unlink(video_data["audio_path"])
-        p.update(t, description="[green]Audio transcribed")
+            client = anthropic.Anthropic()
+            t = p.add_task("Transcribing audio...")
+            transcript = transcribe_audio(video_data["audio_path"], client)
+            os.unlink(video_data["audio_path"])
+            p.update(t, description="[green]Audio transcribed")
 
-        t = p.add_task("Analyzing session from dog's POV...")
-        current_behaviors = load_behaviors()
-        result = analyze_training_session(
-            frames_b64=video_data["frames_b64"],
-            transcript=transcript,
-            current_behaviors=current_behaviors,
-            session_id=session_id,
-            client=client,
-        )
-        p.update(t, description="[green]Session analyzed")
+            t = p.add_task("Analyzing session from dog's POV...")
+            result = analyze_training_session(
+                frames_b64=video_data["frames_b64"],
+                transcript=transcript,
+                current_behaviors=current_behaviors,
+                session_id=session_id,
+                client=client,
+            )
+            p.update(t, description="[green]Session analyzed")
 
     # Persist
     append_session({
@@ -136,13 +152,15 @@ def cmd_command(audio_path: str) -> None:
         console.print("[yellow]No learned behaviors yet. Run some training sessions first.[/yellow]")
         sys.exit(1)
 
-    client = anthropic.Anthropic()
-
     console.print(f"\n[bold cyan]snoop_log[/bold cyan] — Command Received\n")
 
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as p:
         t = p.add_task("Listening and responding...")
-        result = respond_to_command(audio_path, behaviors, client)
+        if _USE_GEMINI:
+            result = gemini_processor.respond_to_command(audio_path, behaviors)
+        else:
+            client = anthropic.Anthropic()
+            result = respond_to_command(audio_path, behaviors, client)
         p.update(t, description="[green]Done")
 
     console.print()

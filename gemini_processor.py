@@ -14,7 +14,7 @@ from pathlib import Path
 from google import genai
 from google.genai import types
 
-MODEL = "gemini-2.0-flash"
+MODEL = "gemini-2.5-flash"
 SYSTEM_PROMPT_PATH = Path(__file__).parent / "prompts" / "dog_system.md"
 
 
