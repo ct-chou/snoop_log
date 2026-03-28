@@ -17,6 +17,11 @@ from log import (
 
 st.set_page_config(page_title="snoop_log", page_icon="🐾", layout="wide")
 
+st.markdown(
+    "<style>video { max-height: 50vh; width: 100%; object-fit: contain; }</style>",
+    unsafe_allow_html=True,
+)
+
 VIDEOS_DIR    = Path("videos")
 DOG_STATES_DIR = Path("dog_states")
 VIDEOS_DIR.mkdir(exist_ok=True)
