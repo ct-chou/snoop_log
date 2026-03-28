@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(pip show:*)",
+      "Bash(pip list:*)",
+      "Bash(python3 -c \"import railtracks\")",
+      "Bash(python3 -c \"import google.generativeai\")",
+      "Bash(python3 -c \"import boto3\")",
+      "Bash(python3 -c \"import fastapi\")",
+      "Bash(python3 -c \"import anthropic\")",
+      "Bash(pip3 show:*)",
+      "Bash(pip3 list:*)",
+      "Bash(python3 -m pip list)",
+      "Bash(python:*)",
+      "Bash(git init:*)",
+      "Bash(git remote:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

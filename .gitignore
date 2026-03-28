@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Data / state
+sessions.json
+behaviors.json
+
+# Videos (large files)
+videos/
+
+# Env / secrets
+.env
+*.env
+
+# OS
+.DS_Store
+
+# Temp / scratch images
+*.jpg
+*.jpeg
+*.png
