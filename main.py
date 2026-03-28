@@ -32,6 +32,7 @@ from log import (
 _USE_GEMINI = bool(os.environ.get("GEMINI_API_KEY"))
 
 if _USE_GEMINI:
+    from pipeline import run_pipeline
     import gemini_processor
 else:
     import anthropic
@@ -56,13 +57,9 @@ def cmd_train(video_path: str) -> None:
 
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as p:
         if _USE_GEMINI:
-            t = p.add_task("Uploading video to Gemini...")
-            result = gemini_processor.analyze_video(
-                video_path=str(path),
-                current_behaviors=current_behaviors,
-                session_id=session_id,
-            )
-            p.update(t, description="[green]Session analyzed via Gemini")
+            t = p.add_task("Running Railtracks pipeline (download → analyze → persist)...")
+            result = run_pipeline(str(path), session_id)
+            p.update(t, description="[green]Pipeline complete")
         else:
             t = p.add_task("Extracting frames and audio...")
             video_data = process_video(video_path)
@@ -84,15 +81,15 @@ def cmd_train(video_path: str) -> None:
             )
             p.update(t, description="[green]Session analyzed")
 
-    # Persist
-    append_session({
-        "session_id": session_id,
-        "timestamp": result.get("timestamp"),
-        "observations": result.get("observations"),
-        "session_summary": result.get("session_summary"),
-        "confusion_flags": result.get("confusion_flags", []),
-    })
-    save_behaviors(result.get("updated_behaviors", []))
+            # Persist (legacy path — pipeline handles this for Gemini path)
+            append_session({
+                "session_id": session_id,
+                "timestamp": result.get("timestamp"),
+                "observations": result.get("observations"),
+                "session_summary": result.get("session_summary"),
+                "confusion_flags": result.get("confusion_flags", []),
+            })
+            save_behaviors(result.get("updated_behaviors", []))
 
     # Display
     console.print()
@@ -113,7 +110,7 @@ def cmd_train(video_path: str) -> None:
         table.add_column("Reward History", max_width=25)
 
         for b in behaviors:
-            delta = b.get("delta", "")
+            delta = str(b.get("delta", ""))
             if delta == "new":
                 delta_str = "[yellow]new[/yellow]"
             elif delta.startswith("+"):
