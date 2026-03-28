@@ -6,7 +6,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from gemini_processor import analyze_video
+from gemini_processor import analyze_video, respond_to_command
 from log import (
     append_session,
     load_behaviors,
@@ -168,6 +168,60 @@ if uploaded:
 
         except Exception as e:
             st.error(f"Training failed: {e}")
+
+st.divider()
+
+# ── Command Mode ───────────────────────────────────────────────────────────────
+
+st.subheader("Give a Command")
+st.caption("Upload an audio clip of you giving a command. The dog will match it to its learned behaviors and narrate its response.")
+
+cmd_audio = st.file_uploader("Audio command", type=["mp3", "wav", "m4a", "mp4"], key="cmd_upload")
+
+if cmd_audio:
+    col1, _ = st.columns([1, 4])
+    with col1:
+        cmd_btn = st.button("Send Command", type="primary", use_container_width=True)
+
+    if cmd_btn:
+        behaviors = load_behaviors()
+        if not behaviors:
+            st.warning("No learned behaviors yet — train the dog first.")
+        else:
+            tmp_path = None
+            try:
+                suffix = "." + cmd_audio.name.rsplit(".", 1)[-1].lower()
+                import tempfile
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                    tmp.write(cmd_audio.read())
+                    tmp_path = tmp.name
+
+                with st.status("Listening...", expanded=True) as status:
+                    result = respond_to_command(tmp_path, behaviors)
+                    status.update(label="Done", state="complete")
+
+                recognized   = result.get("recognized", False)
+                action_id     = result.get("matched_action_id")
+                confidence    = result.get("confidence", 0.0)
+                narration     = result.get("narration", "")
+                dog_state     = "happy" if recognized and confidence > 0.6 else "confused"
+
+                col_narration, col_dog = st.columns([3, 1])
+                with col_narration:
+                    if recognized:
+                        st.success(f"Recognized: **{action_id}** — {confidence:.0%} confidence")
+                    else:
+                        st.error(f"Not recognized — {confidence:.0%} confidence")
+                    st.markdown(f"> *{narration}*")
+
+                with col_dog:
+                    render_dog(dog_state)
+
+            except Exception as e:
+                st.error(f"Command failed: {e}")
+            finally:
+                if tmp_path and os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
 
 st.divider()
 
