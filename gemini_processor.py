@@ -14,12 +14,23 @@ from pathlib import Path
 from google import genai
 from google.genai import types
 
+from log import parse_json_response
+
 MODEL = "gemini-2.5-flash"
 SYSTEM_PROMPT_PATH = Path(__file__).parent / "prompts" / "dog_system.md"
+_SYSTEM_PROMPT = SYSTEM_PROMPT_PATH.read_text()
+
+_client: genai.Client | None = None
 
 
 def _make_client() -> genai.Client:
-    return genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    global _client
+    if _client is None:
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise RuntimeError("GEMINI_API_KEY environment variable is not set")
+        _client = genai.Client(api_key=api_key)
+    return _client
 
 
 def _upload_and_wait(client: genai.Client, path: str) -> types.File:
@@ -33,23 +44,12 @@ def _upload_and_wait(client: genai.Client, path: str) -> types.File:
     return file
 
 
-def _parse_json(raw: str) -> dict:
-    """Strip markdown fences if present, then parse JSON."""
-    raw = raw.strip()
-    if raw.startswith("```"):
-        lines = raw.split("\n")
-        raw = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
-    return json.loads(raw)
-
-
 def analyze_video(video_path: str, current_behaviors: list[dict], session_id: int) -> dict:
     """
     TRAIN mode: upload video to Gemini Files API, analyze as dog POV, return updated behaviors.
     Returns the same JSON schema as agent.analyze_training_session().
     """
     client = _make_client()
-    system_prompt = SYSTEM_PROMPT_PATH.read_text()
-
     uploaded = _upload_and_wait(client, video_path)
 
     timestamp = datetime.now(timezone.utc).isoformat()
@@ -60,13 +60,18 @@ def analyze_video(video_path: str, current_behaviors: list[dict], session_id: in
         f"session_id: {session_id}\n"
         f"timestamp: {timestamp}\n\n"
         f"## Current Learned Behaviors\n```json\n{behaviors_json}\n```\n\n"
-        "Produce your TRAIN mode JSON response."
+        "Produce your TRAIN mode JSON response. "
+        "Also include a 'timeline' array of 4-6 key moments from the video. "
+        "Each entry: {\"time\": \"M:SS\", \"event\": \"<dog POV, no human words>\", "
+        "\"state\": \"alert|confident|happy|confused\"}. "
+        "Use 'alert' when noticing a new sound/gesture, 'confident' when performing a known action, "
+        "'happy' when reward is received, 'confused' when signals are contradictory or unclear."
     )
 
     response = client.models.generate_content(
         model=MODEL,
         contents=[uploaded, prompt],
-        config=types.GenerateContentConfig(system_instruction=system_prompt),
+        config=types.GenerateContentConfig(system_instruction=_SYSTEM_PROMPT),
     )
 
     try:
@@ -74,7 +79,7 @@ def analyze_video(video_path: str, current_behaviors: list[dict], session_id: in
     except Exception:
         pass
 
-    return _parse_json(response.text)
+    return parse_json_response(response.text)
 
 
 def respond_to_command(audio_path: str, current_behaviors: list[dict]) -> dict:
@@ -83,8 +88,6 @@ def respond_to_command(audio_path: str, current_behaviors: list[dict]) -> dict:
     Returns the same JSON schema as agent.respond_to_command(), plus 'command_transcript'.
     """
     client = _make_client()
-    system_prompt = SYSTEM_PROMPT_PATH.read_text()
-
     uploaded = _upload_and_wait(client, audio_path)
 
     behaviors_json = json.dumps(current_behaviors, indent=2)
@@ -98,7 +101,7 @@ def respond_to_command(audio_path: str, current_behaviors: list[dict]) -> dict:
     response = client.models.generate_content(
         model=MODEL,
         contents=[uploaded, prompt],
-        config=types.GenerateContentConfig(system_instruction=system_prompt),
+        config=types.GenerateContentConfig(system_instruction=_SYSTEM_PROMPT),
     )
 
     try:
@@ -106,7 +109,7 @@ def respond_to_command(audio_path: str, current_behaviors: list[dict]) -> dict:
     except Exception:
         pass
 
-    result = _parse_json(response.text)
+    result = parse_json_response(response.text)
     if "command_transcript" not in result:
         result["command_transcript"] = ""
     return result
