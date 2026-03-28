@@ -164,7 +164,9 @@ def cmd_command(audio_path: str) -> None:
         p.update(t, description="[green]Done")
 
     console.print()
-    console.print(f"[dim]Heard:[/dim] {result.get('command_transcript', '').splitlines()[0]}")
+    transcript_lines = result.get("command_transcript", "").splitlines()
+    if transcript_lines:
+        console.print(f"[dim]Heard:[/dim] {transcript_lines[0]}")
     console.print()
 
     recognized = result.get("recognized", False)
